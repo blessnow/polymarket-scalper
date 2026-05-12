@@ -97,14 +97,19 @@ class BinanceWebSocket:
         
         connector = aiohttp.TCPConnector(ssl=ssl_context)
         
-        async with aiohttp.ClientSession(connector=connector) as session:
-            async with session.get(url, params=params) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    return data
-                else:
-                    logger.error(f"Failed to get klines: {resp.status}")
-                    return []
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+            try:
+                async with session.get(url, params=params) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return data
+                    else:
+                        logger.error(f"Failed to get klines: {resp.status}")
+                        return []
+            except (asyncio.TimeoutError, aiohttp.ClientError) as e:
+                logger.warning(f"Kline request failed: {e}")
+                return []
 
     def stop(self):
         self.running = False
