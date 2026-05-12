@@ -53,7 +53,7 @@ def health():
     return jsonify({'status': 'ok'})
 
 
-def run_dashboard(host='0.0.0.0', port=5000):
+def run_dashboard(host='0.0.0.0', port=8080):
     logger.info(f"Starting dashboard on http://{host}:{port}")
     app.run(host=host, port=port, debug=False, threaded=True)
 

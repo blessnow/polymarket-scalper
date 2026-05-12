@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import ssl
 from typing import Callable, Optional
 from dataclasses import dataclass
 from datetime import datetime
@@ -33,9 +34,13 @@ class BinanceWebSocket:
         logger.info(f"Connecting to Binance WebSocket: {self.ws_url}")
         self.running = True
         
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
         while self.running:
             try:
-                async with websockets.connect(self.ws_url) as ws:
+                async with websockets.connect(self.ws_url, ssl=ssl_context) as ws:
                     self.ws = ws
                     logger.info("Connected to Binance WebSocket")
                     
@@ -77,6 +82,7 @@ class BinanceWebSocket:
 
     async def get_5m_klines(self, limit: int = 100) -> list:
         import aiohttp
+        import ssl as ssl_module
         
         url = f"https://api.binance.com/api/v3/klines"
         params = {
@@ -85,7 +91,13 @@ class BinanceWebSocket:
             "limit": limit
         }
         
-        async with aiohttp.ClientSession() as session:
+        ssl_context = ssl_module.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl_module.CERT_NONE
+        
+        connector = aiohttp.TCPConnector(ssl=ssl_context)
+        
+        async with aiohttp.ClientSession(connector=connector) as session:
             async with session.get(url, params=params) as resp:
                 if resp.status == 200:
                     data = await resp.json()

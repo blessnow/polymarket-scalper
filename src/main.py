@@ -277,7 +277,7 @@ class PolymarketScalper:
 
 def run_dashboard():
     from dashboard import run_dashboard as start_dashboard
-    start_dashboard(host='0.0.0.0', port=5000)
+    start_dashboard(host='0.0.0.0', port=8080)
 
 
 async def main():
@@ -286,7 +286,7 @@ async def main():
     dashboard_thread = threading.Thread(target=run_dashboard, daemon=True)
     dashboard_thread.start()
     
-    logger.info("Dashboard running at http://localhost:5000")
+    logger.info("Dashboard running at http://localhost:8080")
     
     try:
         await scalper.run()

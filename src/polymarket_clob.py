@@ -2,6 +2,8 @@ import asyncio
 import aiohttp
 import logging
 import time
+import ssl
+import os
 from typing import Optional, Dict, List
 from dataclasses import dataclass
 from datetime import datetime
@@ -40,7 +42,24 @@ class PolymarketCLOB:
             self.headers["API-Key"] = api_key
 
     async def connect(self):
-        self.session = aiohttp.ClientSession(headers=self.headers)
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
+        connector = aiohttp.TCPConnector(ssl=ssl_context)
+        
+        proxy = os.getenv('https_proxy') or os.getenv('HTTPS_PROXY') or os.getenv('http_proxy') or os.getenv('HTTP_PROXY')
+        
+        if proxy:
+            logger.info(f"Using proxy: {proxy}")
+        
+        timeout = aiohttp.ClientTimeout(total=30, connect=10)
+        self.session = aiohttp.ClientSession(
+            headers=self.headers, 
+            connector=connector,
+            timeout=timeout,
+            trust_env=True
+        )
         logger.info("Connected to Polymarket CLOB")
 
     async def close(self):
@@ -54,6 +73,8 @@ class PolymarketCLOB:
             async with self.session.get(url) as resp:
                 if resp.status == 200:
                     data = await resp.json()
+                    if isinstance(data, dict) and 'data' in data:
+                        return data['data']
                     return data
                 else:
                     logger.error(f"Failed to get markets: {resp.status}")
