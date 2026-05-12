@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polymarket Scalper Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #0a0e27;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #1a1f3a 0%, #2d1b4e 100%);
+            border-radius: 12px;
+            border: 1px solid #3d3d5c;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            color: #00d4ff;
+            margin-bottom: 10px;
+        }
+        
+        .header .subtitle {
+            color: #888;
+            font-size: 14px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        
+        .status-running {
+            background: #00c853;
+            color: #000;
+        }
+        
+        .status-dryrun {
+            background: #ff9800;
+            color: #000;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .card {
+            background: #1a1f3a;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #3d3d5c;
+        }
+        
+        .card h2 {
+            font-size: 16px;
+            color: #888;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .positive {
+            color: #00c853;
+        }
+        
+        .negative {
+            color: #ff5252;
+        }
+        
+        .neutral {
+            color: #00d4ff;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 20px;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #3d3d5c;
+        }
+        
+        th {
+            color: #888;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 1px;
+        }
+        
+        tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .signal-bull {
+            color: #00c853;
+        }
+        
+        .signal-bear {
+            color: #ff5252;
+        }
+        
+        .signal-neutral {
+            color: #888;
+        }
+        
+        .executed-yes {
+            background: rgba(0, 200, 83, 0.2);
+            color: #00c853;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        
+        .executed-no {
+            background: rgba(255, 255, 255, 0.1);
+            color: #888;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        
+        .last-update {
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+        
+        .metrics-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+        
+        .metric {
+            text-align: center;
+        }
+        
+        .metric-value {
+            font-size: 24px;
+            font-weight: 700;
+        }
+        
+        .metric-label {
+            font-size: 11px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .live-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #00c853;
+            border-radius: 50%;
+            margin-right: 5px;
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Polymarket BTC 5MIN Scalper <span class="status-badge status-dryrun">DRY RUN</span></h1>
+        <p class="subtitle">High-frequency arbitrage bot monitoring Binance vs Polymarket price delays</p>
+    </div>
+    
+    <div class="grid">
+        <div class="card">
+            <h2>Capital</h2>
+            <div class="stat-value neutral" id="capital">$1,000.00</div>
+            <div class="stat-label">Initial Capital</div>
+        </div>
+        
+        <div class="card">
+            <h2>Total PnL</h2>
+            <div class="stat-value" id="total-pnl">$0.00</div>
+            <div class="stat-label">Simulated Profit/Loss</div>
+        </div>
+        
+        <div class="card">
+            <h2>Daily PnL</h2>
+            <div class="stat-value" id="daily-pnl">$0.00</div>
+            <div class="stat-label">Today's Performance</div>
+        </div>
+        
+        <div class="card">
+            <h2>Win Rate</h2>
+            <div class="stat-value neutral" id="win-rate">0%</div>
+            <div class="stat-label">Winning Trades</div>
+        </div>
+    </div>
+    
+    <div class="grid">
+        <div class="card">
+            <h2>Performance Metrics</h2>
+            <div class="metrics-row">
+                <div class="metric">
+                    <div class="metric-value neutral" id="total-opps">0</div>
+                    <div class="metric-label">Opportunities</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value neutral" id="executed-opps">0</div>
+                    <div class="metric-label">Executed</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value neutral" id="total-trades">0</div>
+                    <div class="metric-label">Trades</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value neutral" id="open-pos">0</div>
+                    <div class="metric-label">Open Positions</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Signal Quality</h2>
+            <div class="metrics-row">
+                <div class="metric">
+                    <div class="metric-value neutral" id="avg-spread">0%</div>
+                    <div class="metric-label">Avg Spread</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value neutral" id="avg-confidence">0%</div>
+                    <div class="metric-label">Avg Confidence</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value neutral" id="winning-trades">0</div>
+                    <div class="metric-label">Winning</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value neutral" id="losing-trades">0</div>
+                    <div class="metric-label">Losing</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="grid">
+        <div class="card full-width">
+            <h2><span class="live-indicator"></span>PnL History (48h)</h2>
+            <div class="chart-container">
+                <canvas id="pnlChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="grid">
+        <div class="card full-width">
+            <h2><span class="live-indicator"></span>Price Spread (Real-time)</h2>
+            <div class="chart-container">
+                <canvas id="spreadChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="grid">
+        <div class="card full-width">
+            <h2>Recent Opportunities</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Binance Price</th>
+                            <th>Polymarket Price</th>
+                            <th>Spread</th>
+                            <th>Signal</th>
+                            <th>Confidence</th>
+                            <th>Executed</th>
+                            <th>Size</th>
+                        </tr>
+                    </thead>
+                    <tbody id="opportunities-table">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="grid">
+        <div class="card full-width">
+            <h2>Recent Trades</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Token</th>
+                            <th>Side</th>
+                            <th>Size</th>
+                            <th>Price</th>
+                            <th>PnL</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trades-table">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="last-update">
+        Last updated: <span id="last-update">-</span>
+    </div>
+    
+    <script>
+        let pnlChart, spreadChart;
+        const spreadData = [];
+        const maxSpreadPoints = 100;
+        
+        function initCharts() {
+            const pnlCtx = document.getElementById('pnlChart').getContext('2d');
+            pnlChart = new Chart(pnlCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Total PnL',
+                        data: [],
+                        borderColor: '#00d4ff',
+                        backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }, {
+                        label: 'Daily PnL',
+                        data: [],
+                        borderColor: '#00c853',
+                        backgroundColor: 'rgba(0, 200, 83, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#888' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#666' },
+                            grid: { color: '#2d2d4a' }
+                        },
+                        y: {
+                            ticks: { color: '#666' },
+                            grid: { color: '#2d2d4a' }
+                        }
+                    }
+                }
+            });
+            
+            const spreadCtx = document.getElementById('spreadChart').getContext('2d');
+            spreadChart = new Chart(spreadCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Spread %',
+                        data: [],
+                        borderColor: '#ff9800',
+                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                        fill: true,
+                        tension: 0.1,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#888' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#666', maxTicksLimit: 10 },
+                            grid: { color: '#2d2d4a' }
+                        },
+                        y: {
+                            ticks: { 
+                                color: '#666',
+                                callback: function(value) {
+                                    return (value * 100).toFixed(2) + '%';
+                                }
+                            },
+                            grid: { color: '#2d2d4a' }
+                        }
+                    },
+                    animation: {
+                        duration: 0
+                    }
+                }
+            });
+        }
+        
+        function formatCurrency(value) {
+            const num = parseFloat(value);
+            const formatted = Math.abs(num).toLocaleString('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            });
+            return num < 0 ? '-' + formatted : formatted;
+        }
+        
+        function formatPercent(value) {
+            return (parseFloat(value) * 100).toFixed(2) + '%';
+        }
+        
+        function formatTime(timestamp) {
+            if (!timestamp) return '-';
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+        
+        function updateStats() {
+            fetch('/api/stats')
+                .then(res => res.json())
+                .then(data => {
+                    const capital = data.latest_stats?.capital || 1000;
+                    const totalPnl = data.total_pnl || 0;
+                    const dailyPnl = data.latest_stats?.daily_pnl || 0;
+                    const winRate = data.win_rate || 0;
+                    
+                    document.getElementById('capital').textContent = formatCurrency(capital);
+                    
+                    const totalPnlEl = document.getElementById('total-pnl');
+                    totalPnlEl.textContent = formatCurrency(totalPnl);
+                    totalPnlEl.className = 'stat-value ' + (totalPnl >= 0 ? 'positive' : 'negative');
+                    
+                    const dailyPnlEl = document.getElementById('daily-pnl');
+                    dailyPnlEl.textContent = formatCurrency(dailyPnl);
+                    dailyPnlEl.className = 'stat-value ' + (dailyPnl >= 0 ? 'positive' : 'negative');
+                    
+                    document.getElementById('win-rate').textContent = (winRate * 100).toFixed(1) + '%';
+                    
+                    document.getElementById('total-opps').textContent = data.total_opportunities || 0;
+                    document.getElementById('executed-opps').textContent = data.executed_opportunities || 0;
+                    document.getElementById('total-trades').textContent = data.total_trades || 0;
+                    document.getElementById('open-pos').textContent = data.latest_stats?.open_positions || 0;
+                    
+                    document.getElementById('avg-spread').textContent = formatPercent(data.avg_spread || 0);
+                    document.getElementById('avg-confidence').textContent = ((data.avg_confidence || 0) * 100).toFixed(0) + '%';
+                    document.getElementById('winning-trades').textContent = data.winning_trades || 0;
+                    document.getElementById('losing-trades').textContent = (data.total_trades || 0) - (data.winning_trades || 0);
+                })
+                .catch(err => console.error('Error fetching stats:', err));
+        }
+        
+        function updatePrices() {
+            fetch('/api/prices')
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.length > 0) {
+                        const latest = data[data.length - 1];
+                        spreadData.push({
+                            time: formatTime(latest.timestamp),
+                            spread: latest.spread
+                        });
+                        
+                        if (spreadData.length > maxSpreadPoints) {
+                            spreadData.shift();
+                        }
+                        
+                        spreadChart.data.labels = spreadData.map(d => d.time);
+                        spreadChart.data.datasets[0].data = spreadData.map(d => d.spread);
+                        spreadChart.update('none');
+                    }
+                })
+                .catch(err => console.error('Error fetching prices:', err));
+        }
+        
+        function updatePnlHistory() {
+            fetch('/api/pnl_history')
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.length > 0) {
+                        pnlChart.data.labels = data.map(d => formatTime(d.timestamp));
+                        pnlChart.data.datasets[0].data = data.map(d => d.total_pnl);
+                        pnlChart.data.datasets[1].data = data.map(d => d.daily_pnl);
+                        pnlChart.update();
+                    }
+                })
+                .catch(err => console.error('Error fetching PnL history:', err));
+        }
+        
+        function updateOpportunities() {
+            fetch('/api/opportunities')
+                .then(res => res.json())
+                .then(data => {
+                    const tbody = document.getElementById('opportunities-table');
+                    tbody.innerHTML = data.slice(-20).reverse().map(opp => `
+                        <tr>
+                            <td>${formatTime(opp.timestamp)}</td>
+                            <td>$${opp.binance_price.toFixed(2)}</td>
+                            <td>$${opp.polymarket_price.toFixed(2)}</td>
+                            <td class="${opp.spread > 0 ? 'positive' : 'negative'}">${formatPercent(opp.spread)}</td>
+                            <td class="signal-${opp.signal.toLowerCase()}">${opp.signal}</td>
+                            <td>${(opp.confidence * 100).toFixed(0)}%</td>
+                            <td class="${opp.executed ? 'executed-yes' : 'executed-no'}">${opp.executed ? 'Yes' : 'No'}</td>
+                            <td>${opp.position_size.toFixed(2)}</td>
+                        </tr>
+                    `).join('');
+                })
+                .catch(err => console.error('Error fetching opportunities:', err));
+        }
+        
+        function updateTrades() {
+            fetch('/api/trades')
+                .then(res => res.json())
+                .then(data => {
+                    const tbody = document.getElementById('trades-table');
+                    tbody.innerHTML = data.map(trade => `
+                        <tr>
+                            <td>${formatTime(trade.timestamp)}</td>
+                            <td>${trade.token}</td>
+                            <td>${trade.side}</td>
+                            <td>${trade.size.toFixed(2)}</td>
+                            <td>${trade.price.toFixed(4)}</td>
+                            <td class="${trade.pnl >= 0 ? 'positive' : 'negative'}">${formatCurrency(trade.pnl)}</td>
+                            <td>${trade.status}</td>
+                        </tr>
+                    `).join('');
+                })
+                .catch(err => console.error('Error fetching trades:', err));
+        }
+        
+        function updateAll() {
+            updateStats();
+            updatePrices();
+            updateOpportunities();
+            updateTrades();
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+        }
+        
+        initCharts();
+        updateAll();
+        updatePnlHistory();
+        
+        setInterval(updateAll, 2000);
+        setInterval(updatePnlHistory, 60000);
+    </script>
+</body>
+</html>
