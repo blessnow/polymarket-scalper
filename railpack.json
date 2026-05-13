@@ -1,0 +1,8 @@
+{
+  "version": "1",
+  "procs": {
+    "web": {
+      "cmd": "python3 src/main.py"
+    }
+  }
+}
