@@ -37,7 +37,7 @@ class PolymarketCLOB:
         self.api_secret = api_secret
         self.session: Optional[aiohttp.ClientSession] = None
         self.headers = {"Content-Type": "application/json"}
-        
+
         if api_key:
             self.headers["API-Key"] = api_key
 
@@ -47,17 +47,6 @@ class PolymarketCLOB:
         ssl_context.verify_mode = ssl.CERT_NONE
 
         connector = aiohttp.TCPConnector(ssl=ssl_context)
-
-        self.proxy = (
-            os.getenv('https_proxy')
-            or os.getenv('HTTPS_PROXY')
-            or os.getenv('http_proxy')
-            or os.getenv('HTTP_PROXY')
-        )
-
-        if self.proxy:
-            logger.info(f"Using proxy: {self.proxy}")
-
         timeout = aiohttp.ClientTimeout(total=30, connect=10)
         self.session = aiohttp.ClientSession(
             headers=self.headers,
@@ -70,14 +59,11 @@ class PolymarketCLOB:
         if self.session:
             await self.session.close()
 
-    def _proxy(self):
-        return self.proxy if hasattr(self, 'proxy') and self.proxy else None
-
     async def get_markets(self) -> List[Dict]:
         url = f"{CLOB_BASE_URL}/markets"
 
         try:
-            async with self.session.get(url, proxy=self._proxy()) as resp:
+            async with self.session.get(url) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     if isinstance(data, dict) and 'data' in data:
@@ -110,21 +96,14 @@ class PolymarketCLOB:
         return None
 
     async def find_sports_markets(self, sport: str = None) -> List[Dict]:
-        """Find live sports moneyline markets on Polymarket.
-
-        Args:
-            sport: Optional filter like 'nba', 'nhl', 'mlb'
-
-        Returns:
-            List of market dicts with tokens for each team.
-        """
+        """Find live sports moneyline markets on Polymarket."""
         url = f"{CLOB_BASE_URL}/markets"
         params = {"active": "true", "closed": "false"}
         if sport:
             params["tag"] = sport
 
         try:
-            async with self.session.get(url, params=params, proxy=self._proxy()) as resp:
+            async with self.session.get(url, params=params) as resp:
                 if resp.status != 200:
                     logger.error(f"Failed to get sports markets: {resp.status}")
                     return []
@@ -137,12 +116,10 @@ class PolymarketCLOB:
         results = []
         for m in markets:
             question = m.get("question", "").lower()
-            # Skip non-moneyline markets
             market_type = m.get("sportsMarketType", "")
             if market_type and market_type != "moneyline":
                 continue
 
-            # Check for relevant sport keywords
             sport_keywords = {
                 "nba": ["nba", "basketball"],
                 "nhl": ["nhl", "hockey"],
@@ -160,19 +137,16 @@ class PolymarketCLOB:
             if not is_sports:
                 continue
 
-            # Strictly filter: only markets currently accepting orders
             if m.get("closed") or m.get("archived"):
                 continue
             if not m.get("accepting_orders", False):
                 continue
-            # Must have valid token IDs
             if not m.get("condition_id"):
                 continue
 
             if sport and matched_sport != sport:
                 continue
 
-            # Parse tokens - API returns tokens as list of dicts
             tokens_raw = m.get("tokens", [])
             outcomes = m.get("outcomes", [])
 
@@ -191,9 +165,7 @@ class PolymarketCLOB:
                 "end_date_iso": m.get("endDateIso", ""),
             }
 
-            # Parse tokens from outcomes list
             if outcomes and isinstance(outcomes, list) and len(outcomes) >= 2:
-                # First outcome = first team listed, second = second team
                 market_info["home_token"] = outcomes[0].get("token_id", "")
                 market_info["away_token"] = outcomes[1].get("token_id", "")
             elif tokens_raw and isinstance(tokens_raw, list) and len(tokens_raw) >= 2:
@@ -211,7 +183,7 @@ class PolymarketCLOB:
         url = f"{CLOB_BASE_URL}/events/{event_id}"
 
         try:
-            async with self.session.get(url, proxy=self._proxy()) as resp:
+            async with self.session.get(url) as resp:
                 if resp.status != 200:
                     return []
                 data = await resp.json()
@@ -224,9 +196,9 @@ class PolymarketCLOB:
     async def get_order_book(self, token_id: str) -> Optional[OrderBook]:
         url = f"{CLOB_BASE_URL}/book"
         params = {"token_id": token_id}
-        
+
         try:
-            async with self.session.get(url, params=params, proxy=self._proxy()) as resp:
+            async with self.session.get(url, params=params) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     return OrderBook(
@@ -244,49 +216,49 @@ class PolymarketCLOB:
 
     async def get_price(self, token_id: str) -> Optional[float]:
         order_book = await self.get_order_book(token_id)
-        
+
         if not order_book:
             return None
-        
+
         if order_book.asks:
             best_ask = float(order_book.asks[0].get("price", 0))
             if best_ask > 0:
                 return best_ask
-        
+
         if order_book.bids:
             best_bid = float(order_book.bids[0].get("price", 0))
             if best_bid > 0:
                 return best_bid
-        
+
         return None
 
     async def get_mid_price(self, token_id: str) -> Optional[float]:
         order_book = await self.get_order_book(token_id)
-        
+
         if not order_book:
             return None
-        
+
         best_bid = 0.0
         best_ask = 0.0
-        
+
         if order_book.bids:
             best_bid = float(order_book.bids[0].get("price", 0))
-        
+
         if order_book.asks:
             best_ask = float(order_book.asks[0].get("price", 0))
-        
+
         if best_bid > 0 and best_ask > 0:
             return (best_bid + best_ask) / 2
-        
+
         return None
 
     async def place_order(self, token_id: str, side: str, price: float, size: float) -> Optional[Dict]:
         if not self.api_key:
             logger.warning("No API key configured, cannot place order")
             return None
-        
+
         url = f"{CLOB_BASE_URL}/order"
-        
+
         payload = {
             "token_id": token_id,
             "side": side,
@@ -294,9 +266,9 @@ class PolymarketCLOB:
             "size": str(size),
             "expiration": int(time.time()) + 300
         }
-        
+
         try:
-            async with self.session.post(url, json=payload, proxy=self._proxy()) as resp:
+            async with self.session.post(url, json=payload) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     logger.info(f"Order placed: {side} {size} @ {price}")
@@ -312,11 +284,11 @@ class PolymarketCLOB:
     async def cancel_order(self, order_id: str) -> bool:
         if not self.api_key:
             return False
-        
+
         url = f"{CLOB_BASE_URL}/order/{order_id}"
-        
+
         try:
-            async with self.session.delete(url, proxy=self._proxy()) as resp:
+            async with self.session.delete(url) as resp:
                 if resp.status == 200:
                     logger.info(f"Order cancelled: {order_id}")
                     return True
@@ -330,11 +302,11 @@ class PolymarketCLOB:
     async def get_positions(self) -> List[Dict]:
         if not self.api_key:
             return []
-        
+
         url = f"{CLOB_BASE_URL}/positions"
-        
+
         try:
-            async with self.session.get(url, proxy=self._proxy()) as resp:
+            async with self.session.get(url) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     return data
