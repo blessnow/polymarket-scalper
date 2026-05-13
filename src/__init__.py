@@ -1,16 +1,17 @@
-from .binance_ws import BinanceWebSocket, BinanceTrade
+from .sports_feed import SportsFeed, ScoreEvent, LiveGame
 from .polymarket_clob import PolymarketCLOB, Market, OrderBook
-from .delay_detector import DelayDetector, Scalper, Signal, ArbitrageOpportunity
+from .delay_detector import SportsDelayDetector, SportsScalper, Signal, ArbitrageOpportunity
 from .risk_manager import RiskManager, Position, RiskAction
 
 __all__ = [
-    "BinanceWebSocket",
-    "BinanceTrade",
+    "SportsFeed",
+    "ScoreEvent",
+    "LiveGame",
     "PolymarketCLOB",
     "Market",
     "OrderBook",
-    "DelayDetector",
-    "Scalper",
+    "SportsDelayDetector",
+    "SportsScalper",
     "Signal",
     "ArbitrageOpportunity",
     "RiskManager",
